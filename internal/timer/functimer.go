@@ -1,36 +1,34 @@
 package timer
 
 import (
-	"context"
 	"time"
+
+	"github.com/DecarbonizedGlucose/cubet/internal/user"
 )
 
 type FunctionalTimer struct {
 	solvingTimer     *BasicTimer
 	preparationTimer *BasicTimer
 
-	UserState         UserState
+	UserState         user.UserState
 	enablePreparation bool
 	alarmCh           chan time.Duration
-	operationCh       chan UserAction
+	operationCh       chan user.UserAction
 	resultCh          chan time.Duration
-	punishmentCh      chan Punishment
-
-	ctx        context.Context
-	cancelFunc context.CancelFunc
+	punishmentCh      chan user.Punishment
 }
 
 func NewFunctionalTimer(
 	lastTime time.Duration,
 	enablePreparation bool,
-	opch chan UserAction,
+	opch chan user.UserAction,
 	rech chan time.Duration,
-	puch chan Punishment,
+	puch chan user.Punishment,
 ) *FunctionalTimer {
 	ft := &FunctionalTimer{
 		solvingTimer:      NewBasicTimer(lastTime),
 		preparationTimer:  NewBasicTimer(0),
-		UserState:         SttInitialOrStopped,
+		UserState:         user.SttInitialOrStopped,
 		enablePreparation: enablePreparation,
 		alarmCh:           make(chan time.Duration),
 		operationCh:       opch,
@@ -44,21 +42,22 @@ func NewFunctionalTimer(
 func (ft *FunctionalTimer) ListenUserAction() {
 	for {
 		action := <-ft.operationCh
-		if action != ActExitTimer {
+		if action != user.ActExitTimer {
 			ft.DoOperation(action)
 		} else {
+			ft.preparationTimer.Stop()
 			ft.solvingTimer.Stop()
 			return
 		}
 	}
 }
 
-func (ft *FunctionalTimer) DoOperation(action UserAction) {
+func (ft *FunctionalTimer) DoOperation(action user.UserAction) {
 	switch action {
-	case ActReadyToPrepare:
-		ft.UserState = SttToLaunch
-	case ActStartToPrepare:
-		ft.UserState = SttPreparing
+	case user.ActReadyToPrepare:
+		ft.UserState = user.SttToLaunch
+	case user.ActStartToPrepare:
+		ft.UserState = user.SttPreparing
 		ft.preparationTimer.Start(
 			ft.alarmCh,
 			8*time.Second,
@@ -66,23 +65,23 @@ func (ft *FunctionalTimer) DoOperation(action UserAction) {
 			15*time.Second,
 			17*time.Second,
 		)
-	case ActCancelBeforeSolve:
-		ft.UserState = SttInitialOrStopped
+	case user.ActCancelBeforeSolve:
+		ft.UserState = user.SttInitialOrStopped
 		ft.preparationTimer.Stop()
-		ft.punishmentCh <- PnsDidNotStart
-	case ActReadyToSolve:
-		ft.UserState = SttToStart
-	case ActStartSolving:
-		ft.UserState = SttSolving
+		ft.punishmentCh <- user.PnsDidNotStart
+	case user.ActReadyToSolve:
+		ft.UserState = user.SttToStart
+	case user.ActStartSolving:
+		ft.UserState = user.SttSolving
 		ft.preparationTimer.Stop()
 		ft.solvingTimer.Start(nil)
-	case ActCancelDuringSolve:
-		ft.UserState = SttInitialOrStopped
+	case user.ActCancelDuringSolve:
+		ft.UserState = user.SttInitialOrStopped
 		elapsed := ft.solvingTimer.Stop()
 		ft.resultCh <- elapsed
-		ft.punishmentCh <- PnsDidNotFinish
-	case ActStopSolving:
-		ft.UserState = SttInitialOrStopped
+		ft.punishmentCh <- user.PnsDidNotFinish
+	case user.ActStopSolving:
+		ft.UserState = user.SttInitialOrStopped
 		elapsed := ft.solvingTimer.Stop()
 		ft.resultCh <- elapsed
 	default:

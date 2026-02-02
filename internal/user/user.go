@@ -1,4 +1,4 @@
-package timer
+package user
 
 type UserState int
 
