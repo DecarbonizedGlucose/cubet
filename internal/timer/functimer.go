@@ -28,7 +28,7 @@ func NewFunctionalTimer(
 	ft := &FunctionalTimer{
 		solvingTimer:      NewBasicTimer(lastTime),
 		preparationTimer:  NewBasicTimer(0),
-		UserState:         user.SttInitialOrStopped,
+		UserState:         user.SttFree,
 		enablePreparation: enablePreparation,
 		alarmCh:           make(chan time.Duration),
 		operationCh:       opch,
@@ -55,7 +55,7 @@ func (ft *FunctionalTimer) ListenUserAction() {
 func (ft *FunctionalTimer) DoOperation(action user.UserAction) {
 	switch action {
 	case user.ActReadyToPrepare:
-		ft.UserState = user.SttToLaunch
+		ft.UserState = user.SttToPrepare
 	case user.ActStartToPrepare:
 		ft.UserState = user.SttPreparing
 		ft.preparationTimer.Start(
@@ -66,7 +66,7 @@ func (ft *FunctionalTimer) DoOperation(action user.UserAction) {
 			17*time.Second,
 		)
 	case user.ActCancelBeforeSolve:
-		ft.UserState = user.SttInitialOrStopped
+		ft.UserState = user.SttFree
 		ft.preparationTimer.Stop()
 		ft.punishmentCh <- user.PnsDidNotStart
 	case user.ActReadyToSolve:
@@ -76,12 +76,12 @@ func (ft *FunctionalTimer) DoOperation(action user.UserAction) {
 		ft.preparationTimer.Stop()
 		ft.solvingTimer.Start(nil)
 	case user.ActCancelDuringSolve:
-		ft.UserState = user.SttInitialOrStopped
+		ft.UserState = user.SttFree
 		elapsed := ft.solvingTimer.Stop()
 		ft.resultCh <- elapsed
 		ft.punishmentCh <- user.PnsDidNotFinish
 	case user.ActStopSolving:
-		ft.UserState = user.SttInitialOrStopped
+		ft.UserState = user.SttFree
 		elapsed := ft.solvingTimer.Stop()
 		ft.resultCh <- elapsed
 	default:
